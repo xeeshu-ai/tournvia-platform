@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tournvia - Free Fire Tournament Platform</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Login Page -->
+    <div id="login-page" class="page active">
+        <div class="auth-container">
+            <div class="auth-header">
+                <h1 class="logo">Tournvia</h1>
+                <p class="tagline">Your Ultimate Tournament Platform</p>
+            </div>
+            <form id="login-form" class="auth-form">
+                <div class="form-group">
+                    <label for="login-uid" class="form-label">Free Fire UID</label>
+                    <input type="text" id="login-uid" class="form-control" placeholder="Enter your UID" required>
+                    <span class="error-message"></span>
+                </div>
+                <div class="form-group">
+                    <label for="login-password" class="form-label">Password</label>
+                    <input type="password" id="login-password" class="form-control" placeholder="Enter password" required>
+                    <span class="error-message"></span>
+                </div>
+                <button type="submit" class="btn btn--primary btn--full-width">Login</button>
+            </form>
+            <div class="auth-footer">
+                <p>Don't have an account? <a href="#" id="show-register">Register now</a></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Registration Page -->
+    <div id="register-page" class="page">
+        <div class="auth-container">
+            <div class="auth-header">
+                <h1 class="logo">Tournvia</h1>
+                <p class="tagline">Create Your Account</p>
+            </div>
+            <form id="register-form" class="auth-form">
+                <div class="form-group">
+                    <label for="register-ign" class="form-label">In-Game Name (IGN)</label>
+                    <input type="text" id="register-ign" class="form-control" placeholder="Enter IGN" required>
+                    <span class="error-message"></span>
+                </div>
+                <div class="form-group">
+                    <label for="register-uid" class="form-label">Free Fire UID</label>
+                    <input type="text" id="register-uid" class="form-control" placeholder="Enter UID" required>
+                    <span class="error-message"></span>
+                </div>
+                <div class="form-group">
+                    <label for="register-phone" class="form-label">Phone Number</label>
+                    <input type="tel" id="register-phone" class="form-control" placeholder="+91XXXXXXXXXX" required>
+                    <span class="error-message"></span>
+                </div>
+                <div class="form-group">
+                    <label for="register-password" class="form-label">Password</label>
+                    <input type="password" id="register-password" class="form-control" placeholder="Create password" required>
+                    <span class="error-message"></span>
+                </div>
+                <div class="form-group">
+                    <label for="register-confirm-password" class="form-label">Confirm Password</label>
+                    <input type="password" id="register-confirm-password" class="form-control" placeholder="Confirm password" required>
+                    <span class="error-message"></span>
+                </div>
+                <button type="submit" class="btn btn--primary btn--full-width">Register</button>
+            </form>
+            <div class="auth-footer">
+                <p>Already have an account? <a href="#" id="show-login">Login here</a></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main App Container -->
+    <div id="app-container" class="app-container">
+        <!-- Mobile Header -->
+        <header class="mobile-header">
+            <div class="header-left">
+                <button class="menu-toggle" id="menu-toggle">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
+                <h2 class="header-title" id="page-title">Dashboard</h2>
+            </div>
+            <div class="header-right">
+                <button class="notification-btn" id="notification-btn">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                        <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                    </svg>
+                    <span class="notification-badge" id="notification-badge">0</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- Desktop Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <h1 class="logo">Tournvia</h1>
+            </div>
+            <nav class="sidebar-nav">
+                <a href="#" class="nav-item active" data-page="dashboard">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="3" width="7" height="7"></rect>
+                        <rect x="14" y="3" width="7" height="7"></rect>
+                        <rect x="14" y="14" width="7" height="7"></rect>
+                        <rect x="3" y="14" width="7" height="7"></rect>
+                    </svg>
+                    <span>Dashboard</span>
+                </a>
+                <a href="#" class="nav-item" data-page="tournaments">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="8" r="7"></circle>
+                        <polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline>
+                    </svg>
+                    <span>Tournaments</span>
+                </a>
+                <a href="#" class="nav-item" data-page="wallet">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
+                        <line x1="1" y1="10" x2="23" y2="10"></line>
+                    </svg>
+                    <span>Wallet</span>
+                </a>
+                <a href="#" class="nav-item" data-page="team">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="9" cy="7" r="4"></circle>
+                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                        <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                    </svg>
+                    <span>My Team</span>
+                </a>
+                <a href="#" class="nav-item" data-page="profile">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="12" cy="7" r="4"></circle>
+                    </svg>
+                    <span>Profile</span>
+                </a>
+                <a href="#" class="nav-item" data-page="support">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+                        <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                    </svg>
+                    <span>Support</span>
+                </a>
+            </nav>
+            <div class="sidebar-footer">
+                <button class="btn btn--outline btn--full-width" id="logout-btn">Logout</button>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Dashboard Page -->
+            <div id="dashboard-page" class="content-page active">
+                <div class="stats-grid" id="stats-grid"></div>
+                
+                <section class="section">
+                    <h3 class="section-title">Quick Actions</h3>
+                    <div class="quick-actions" id="quick-actions"></div>
+                </section>
+
+                <section class="section">
+                    <h3 class="section-title">Upcoming Matches</h3>
+                    <div class="matches-list" id="upcoming-matches"></div>
+                </section>
+            </div>
+
+            <!-- Tournaments Page -->
+            <div id="tournaments-page" class="content-page">
+                <div class="page-header">
+                    <div class="search-box">
+                        <input type="text" id="tournament-search" class="form-control" placeholder="Search tournaments...">
+                    </div>
+                </div>
+
+                <div class="filters-section">
+                    <div class="filter-group">
+                        <label class="filter-label">Mode</label>
+                        <div class="filter-pills" id="mode-filters"></div>
+                    </div>
+                    <div class="filter-group">
+                        <label class="filter-label">Game Type</label>
+                        <div class="filter-pills" id="type-filters"></div>
+                    </div>
+                    <div class="filter-group">
+                        <label class="filter-label">Team Size</label>
+                        <div class="filter-pills" id="size-filters"></div>
+                    </div>
+                    <button class="btn btn--sm btn--secondary" id="clear-filters">Clear Filters</button>
+                </div>
+
+                <div class="tournaments-grid" id="tournaments-grid"></div>
+            </div>
+
+            <!-- Tournament Detail Page -->
+            <div id="tournament-detail-page" class="content-page">
+                <button class="btn btn--secondary btn--sm back-btn" id="back-to-tournaments">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="19" y1="12" x2="5" y2="12"></line>
+                        <polyline points="12 19 5 12 12 5"></polyline>
+                    </svg>
+                    Back
+                </button>
+                <div id="tournament-detail-content"></div>
+            </div>
+
+            <!-- Wallet Page -->
+            <div id="wallet-page" class="content-page">
+                <div class="balance-card" id="balance-card"></div>
+
+                <div class="tabs">
+                    <button class="tab-btn active" data-tab="history">Transaction History</button>
+                    <button class="tab-btn" data-tab="add-money">Add Money</button>
+                    <button class="tab-btn" data-tab="withdraw">Withdraw</button>
+                </div>
+
+                <div class="tab-content active" id="history-tab">
+                    <div class="filter-pills" style="margin-bottom: 20px;">
+                        <button class="filter-pill active" data-filter="all">All</button>
+                        <button class="filter-pill" data-filter="deposit">Deposits</button>
+                        <button class="filter-pill" data-filter="withdrawal">Withdrawals</button>
+                        <button class="filter-pill" data-filter="entry_fee">Entry Fees</button>
+                        <button class="filter-pill" data-filter="winning">Winnings</button>
+                    </div>
+                    <div class="transactions-list" id="transactions-list"></div>
+                </div>
+
+                <div class="tab-content" id="add-money-tab">
+                    <form id="add-money-form" class="wallet-form">
+                        <div class="form-group">
+                            <label for="add-amount" class="form-label">Amount</label>
+                            <input type="number" id="add-amount" class="form-control" placeholder="Enter amount" required min="100">
+                        </div>
+                        <div class="qr-placeholder">
+                            <p>UPI QR Code will be displayed here</p>
+                            <p class="upi-id">UPI ID: <strong id="upi-id"></strong></p>
+                        </div>
+                        <div class="form-group">
+                            <label for="transaction-id" class="form-label">Transaction ID</label>
+                            <input type="text" id="transaction-id" class="form-control" placeholder="Enter UPI transaction ID" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="payment-screenshot" class="form-label">Payment Screenshot</label>
+                            <input type="file" id="payment-screenshot" class="form-control" accept="image/*" required>
+                        </div>
+                        <button type="submit" class="btn btn--primary btn--full-width">Submit Payment</button>
+                    </form>
+                </div>
+
+                <div class="tab-content" id="withdraw-tab">
+                    <form id="withdraw-form" class="wallet-form">
+                        <div class="form-group">
+                            <label for="withdraw-amount" class="form-label">Amount</label>
+                            <input type="number" id="withdraw-amount" class="form-control" placeholder="Enter amount" required min="500">
+                        </div>
+                        <div class="form-group">
+                            <label for="withdraw-upi" class="form-label">UPI ID</label>
+                            <input type="text" id="withdraw-upi" class="form-control" placeholder="yourname@paytm" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="withdraw-bank" class="form-label">Bank Account (Optional)</label>
+                            <input type="text" id="withdraw-bank" class="form-control" placeholder="Account number">
+                        </div>
+                        <div class="form-group">
+                            <label for="withdraw-ifsc" class="form-label">IFSC Code (Optional)</label>
+                            <input type="text" id="withdraw-ifsc" class="form-control" placeholder="IFSC code">
+                        </div>
+                        <button type="submit" class="btn btn--primary btn--full-width">Request Withdrawal</button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Team Page -->
+            <div id="team-page" class="content-page">
+                <div id="team-content"></div>
+            </div>
+
+            <!-- Profile Page -->
+            <div id="profile-page" class="content-page">
+                <div class="profile-header" id="profile-header"></div>
+                
+                <section class="section">
+                    <h3 class="section-title">Statistics</h3>
+                    <div class="stats-cards" id="profile-stats"></div>
+                </section>
+
+                <section class="section">
+                    <h3 class="section-title">Recent Tournaments</h3>
+                    <div class="table-container">
+                        <table class="data-table" id="tournament-history-table"></table>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Support Page -->
+            <div id="support-page" class="content-page">
+                <section class="section">
+                    <h3 class="section-title">Tournament Rules</h3>
+                    <div class="accordion" id="rules-accordion"></div>
+                </section>
+
+                <section class="section">
+                    <h3 class="section-title">Frequently Asked Questions</h3>
+                    <div class="accordion" id="faq-accordion"></div>
+                </section>
+
+                <section class="section">
+                    <h3 class="section-title">Contact Us</h3>
+                    <form id="contact-form" class="support-form">
+                        <div class="form-group">
+                            <label for="contact-subject" class="form-label">Subject</label>
+                            <input type="text" id="contact-subject" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="contact-message" class="form-label">Message</label>
+                            <textarea id="contact-message" class="form-control" rows="5" required></textarea>
+                        </div>
+                        <button type="submit" class="btn btn--primary">Send Message</button>
+                    </form>
+                </section>
+
+                <section class="section">
+                    <h3 class="section-title">Report an Issue</h3>
+                    <form id="report-form" class="support-form">
+                        <div class="form-group">
+                            <label for="report-type" class="form-label">Issue Type</label>
+                            <select id="report-type" class="form-control" required>
+                                <option value="">Select issue type</option>
+                                <option value="payment">Payment Issue</option>
+                                <option value="tournament">Tournament Issue</option>
+                                <option value="team">Team Issue</option>
+                                <option value="technical">Technical Issue</option>
+                                <option value="other">Other</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="report-description" class="form-label">Description</label>
+                            <textarea id="report-description" class="form-control" rows="5" required></textarea>
+                        </div>
+                        <button type="submit" class="btn btn--primary">Submit Report</button>
+                    </form>
+                </section>
+            </div>
+        </main>
+
+        <!-- Bottom Navigation (Mobile) -->
+        <nav class="bottom-nav">
+            <a href="#" class="bottom-nav-item active" data-page="dashboard">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="3" width="7" height="7"></rect>
+                    <rect x="14" y="3" width="7" height="7"></rect>
+                    <rect x="14" y="14" width="7" height="7"></rect>
+                    <rect x="3" y="14" width="7" height="7"></rect>
+                </svg>
+                <span>Home</span>
+            </a>
+            <a href="#" class="bottom-nav-item" data-page="tournaments">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="8" r="7"></circle>
+                    <polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline>
+                </svg>
+                <span>Tournaments</span>
+            </a>
+            <a href="#" class="bottom-nav-item" data-page="wallet">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
+                    <line x1="1" y1="10" x2="23" y2="10"></line>
+                </svg>
+                <span>Wallet</span>
+            </a>
+            <a href="#" class="bottom-nav-item" data-page="team">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="9" cy="7" r="4"></circle>
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                </svg>
+                <span>Team</span>
+            </a>
+            <a href="#" class="bottom-nav-item" data-page="profile">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="12" cy="7" r="4"></circle>
+                </svg>
+                <span>Profile</span>
+            </a>
+        </nav>
+    </div>
+
+    <!-- Modal Container -->
+    <div id="modal" class="modal">
+        <div class="modal-content">
+            <button class="modal-close" id="modal-close">&times;</button>
+            <div id="modal-body"></div>
+        </div>
+    </div>
+
+    <!-- Notification Panel -->
+    <div id="notification-panel" class="notification-panel">
+        <div class="notification-header">
+            <h3>Notifications</h3>
+            <button class="close-panel" id="close-notifications">&times;</button>
+        </div>
+        <div class="notification-list" id="notification-list"></div>
+    </div>
+
+    <script src="config.js"></script>
+    <script src="data.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
