@@ -1599,14 +1599,18 @@ async function removeMember(memberUid) {
     }
     
     try {
-        // Get member's details by UID
+        // Get member's details by UID (Free Fire UID, not user id)
         const { data: member, error: memberError } = await supabase
             .from('profiles')
-            .select('id, ign')
+            .select('id, ign, uid')
             .eq('uid', memberUid)
             .single();
         
-        if (memberError) throw memberError;
+        if (memberError || !member) {
+            console.error('Member lookup error:', memberError);
+            alert('Could not find member. Please try again.');
+            return;
+        }
         
         const confirm1 = confirm(`Are you sure you want to remove ${member.ign} from the team?`);
         if (!confirm1) return;
@@ -1641,6 +1645,7 @@ async function removeMember(memberUid) {
         alert('Failed to remove member: ' + error.message);
     }
 }
+
 
 
 
