@@ -108,13 +108,14 @@ const CONFIG = {
   // Validation Rules
   validation: {
     uid: {
-      minLength: 9,
-      maxLength: 10,
-      pattern: /^[0-9]{9,10}$/
+        pattern: /^\d{9,10}$/,
+        message: 'UID must be 9-10 digits'
     },
-    phone: {
-      pattern: /^\+91[0-9]{10}$/
+    email: {
+        pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+        message: 'Please enter a valid email address'
     },
+
     password: {
       minLength: 6,
       maxLength: 20

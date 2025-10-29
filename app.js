@@ -60,6 +60,7 @@ function setupEventListeners() {
   // Logout
   document.getElementById('logout-btn')?.addEventListener('click', handleLogout);
 
+
   // Modal
   document.getElementById('modal-close')?.addEventListener('click', closeModal);
   document.getElementById('modal')?.addEventListener('click', (e) => {
@@ -95,86 +96,132 @@ function setupEventListeners() {
 }
 
 // Authentication Functions
-function handleLogin(e) {
-  e.preventDefault();
-  
-  const uid = document.getElementById('login-uid').value.trim();
-  const password = document.getElementById('login-password').value;
-
-  // TODO: Replace with actual API call to Supabase
-  const user = DATA.getUserByUID(uid);
-  
-  if (user && user.password === password) {
-    AppState.currentUser = user;
-    AppState.isLoggedIn = true;
-    showApp();
-  } else {
-    alert('Invalid UID or password!');
-  }
+async function handleLogin(e) {
+    e.preventDefault();
+    
+    const email = document.getElementById('login-uid').value.trim(); // Reusing uid field for email
+    const password = document.getElementById('login-password').value;
+    
+    try {
+        // Login with Supabase Auth
+        const { data, error } = await supabase.auth.signInWithPassword({
+            email: email,
+            password: password
+        });
+        
+        if (error) throw error;
+        
+        // Get user profile
+        const { data: profile, error: profileError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', data.user.id)
+            .single();
+        
+        if (profileError) throw profileError;
+        
+        // Update app state
+        AppState.currentUser = profile;
+        AppState.isLoggedIn = true;
+        
+        // Update last login
+        await supabase
+            .from('profiles')
+            .update({ last_login: new Date().toISOString() })
+            .eq('id', data.user.id);
+        
+        showApp();
+        loadDashboard();
+        
+    } catch (error) {
+        console.error('Login error:', error);
+        alert('Login failed: ' + error.message);
+    }
 }
 
-function handleRegister(e) {
-  e.preventDefault();
-  
-  const ign = document.getElementById('register-ign').value.trim();
-  const uid = document.getElementById('register-uid').value.trim();
-  const phone = document.getElementById('register-phone').value.trim();
-  const password = document.getElementById('register-password').value;
-  const confirmPassword = document.getElementById('register-confirm-password').value;
 
-  // Validation
-  if (password !== confirmPassword) {
-    alert('Passwords do not match!');
-    return;
-  }
-
-  if (!CONFIG.validation.uid.pattern.test(uid)) {
-    alert('Invalid UID format! Must be 9-10 digits.');
-    return;
-  }
-
-  if (!CONFIG.validation.phone.pattern.test(phone)) {
-    alert('Invalid phone format! Use +91XXXXXXXXXX');
-    return;
-  }
-
-  // TODO: Replace with actual API call to Supabase
-  const existingUser = DATA.getUserByUID(uid);
-  if (existingUser) {
-    alert('User with this UID already exists!');
-    return;
-  }
-
-  // Create new user
-  const newUser = {
-    uid: uid,
-    ign: ign,
-    phone: phone,
-    password: password,
-    current_balance: 0,
-    total_tournaments: 0,
-    wins: 0,
-    total_earnings: 0,
-    win_rate: 0,
-    team_id: null,
-    is_team_admin: false,
-    avatar: ign.substring(0, 2).toUpperCase(),
-    joined_date: new Date().toISOString().split('T')[0]
-  };
-
-  DATA.users.push(newUser);
-  AppState.currentUser = newUser;
-  AppState.isLoggedIn = true;
-  
-  alert('Registration successful!');
-  showApp();
+async function handleRegister(e) {
+    e.preventDefault();
+    
+    const ign = document.getElementById('register-ign').value.trim();
+    const uid = document.getElementById('register-uid').value.trim();
+    const email = document.getElementById('register-email').value.trim();
+    const password = document.getElementById('register-password').value;
+    const confirmPassword = document.getElementById('register-confirm-password').value;
+    
+    // Validation
+    if (password !== confirmPassword) {
+        alert('Passwords do not match!');
+        return;
+    }
+    
+    if (password.length < 6) {
+        alert('Password must be at least 6 characters!');
+        return;
+    }
+    
+    if (!CONFIG.validation.uid.pattern.test(uid)) {
+        alert('Invalid UID format! Must be 9-10 digits.');
+        return;
+    }
+    
+    if (!CONFIG.validation.email.pattern.test(email)) {
+        alert('Invalid email format!');
+        return;
+    }
+    
+    try {
+        // Register user with Supabase Auth
+        const { data, error } = await supabase.auth.signUp({
+            email: email,
+            password: password,
+            options: {
+                data: {
+                    ign: ign,
+                    uid: uid
+                }
+            }
+        });
+        
+        if (error) throw error;
+        
+        // Update profile with UID
+        if (data.user) {
+            const { error: profileError } = await supabase
+                .from('profiles')
+                .update({ uid: uid, ign: ign })
+                .eq('id', data.user.id);
+            
+            if (profileError) throw profileError;
+        }
+        
+        alert('Registration successful! You can now login.');
+        showLoginPage();
+        
+    } catch (error) {
+        console.error('Registration error:', error);
+        alert('Registration failed: ' + error.message);
+    }
 }
 
-function handleLogout() {
-  AppState.currentUser = null;
-  AppState.isLoggedIn = false;
-  window.location.reload();
+
+async function handleLogout() {
+    try {
+        const { error } = await supabase.auth.signOut();
+        if (error) throw error;
+        
+        // Clear app state
+        AppState.currentUser = null;
+        AppState.isLoggedIn = false;
+        
+        showLoginPage();
+        
+    } catch (error) {
+        console.error('Logout error:', error);
+        alert('Logout failed: ' + error.message);
+    }
 }
+
 
 // Page Navigation
 function showLoginPage() {
