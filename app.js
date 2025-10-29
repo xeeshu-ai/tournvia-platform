@@ -1065,19 +1065,51 @@ function handleWithdraw(e) {
 }
 
 // Team Functions
-function loadTeamPage() {
-  const user = AppState.currentUser;
-  const teamContent = document.getElementById('team-content');
-  
-  if (user.team_id) {
-    const team = DATA.getTeamById(user.team_id);
-    teamContent.innerHTML = renderTeamSection(team, user);
-  } else {
-    teamContent.innerHTML = renderNoTeamSection();
-  }
-  
-  attachTeamEventListeners();
+async function loadTeamPage() {
+    const user = AppState.currentUser;
+    const teamContent = document.getElementById('team-content');
+    
+    try {
+        if (!user.team_id) {
+            // User has no team
+            teamContent.innerHTML = renderNoTeamSection();
+        } else {
+            // Get team details
+            const { data: team, error: teamError } = await supabase
+                .from('teams')
+                .select('*')
+                .eq('id', user.team_id)
+                .single();
+            
+            if (teamError) throw teamError;
+            
+            // Get team members
+            const { data: members, error: membersError } = await supabase
+                .from('profiles')
+                .select('id, uid, ign, avatar, total_tournaments, wins, win_rate, is_team_admin')
+                .eq('team_id', user.team_id);
+            
+            if (membersError) throw membersError;
+            
+            team.members = members.map(m => ({
+                uid: m.uid,
+                ign: m.ign,
+                role: m.is_team_admin ? 'admin' : 'member',
+                avatar: m.avatar,
+                total_tournaments: m.total_tournaments,
+                win_rate: m.win_rate
+            }));
+            
+            teamContent.innerHTML = renderTeamSection(team, user);
+        }
+    } catch (error) {
+        console.error('Load team error:', error);
+        teamContent.innerHTML = '<p style="color: var(--color-error);">Error loading team data</p>';
+    }
+    
+    attachTeamEventListeners();
 }
+
 
 function renderTeamSection(team, user) {
   return `
@@ -1169,39 +1201,76 @@ function attachTeamEventListeners() {
   // Event listeners are attached via onclick in HTML for simplicity
 }
 
-function createTeam(e) {
-  e.preventDefault();
-  
-  const teamName = document.getElementById('team-name').value.trim();
-  const user = AppState.currentUser;
-  
-  // Generate team code
-  const teamCode = generateTeamCode();
-  
-  // TODO: Replace with actual API call
-  const newTeam = {
-    id: 'team_' + Date.now(),
-    name: teamName,
-    admin_uid: user.uid,
-    team_code: teamCode,
-    created_date: new Date().toISOString().split('T')[0],
-    members: [
-      {
-        uid: user.uid,
-        ign: user.ign,
-        role: 'admin',
-        joined_date: new Date().toISOString().split('T')[0]
-      }
-    ]
-  };
-  
-  DATA.teams.push(newTeam);
-  user.team_id = newTeam.id;
-  user.is_team_admin = true;
-  
-  alert('Team created successfully!');
-  loadTeamPage();
+async function createTeam(e) {
+    e.preventDefault();
+    
+    // The correct ID from your HTML is 'team-name'
+    const teamNameInput = document.getElementById('team-name');
+    
+    if (!teamNameInput) {
+        console.error('Team name input not found');
+        alert('Error: Cannot find team name input field');
+        return;
+    }
+    
+    const teamName = teamNameInput.value.trim();
+    const user = AppState.currentUser;
+    
+    if (!teamName) {
+        alert('Please enter a team name');
+        return;
+    }
+    
+    if (user.team_id) {
+        alert('You are already in a team! Leave your current team first.');
+        return;
+    }
+    
+    try {
+        // Generate team code
+        const { data: teamCode, error: codeError } = await supabase.rpc('generate_team_code');
+        if (codeError) throw codeError;
+        
+        // Create team
+        const { data: newTeam, error: teamError } = await supabase
+            .from('teams')
+            .insert({
+                name: teamName,
+                admin_uid: user.id,
+                team_code: teamCode,
+                member_count: 1,
+                max_members: 6
+            })
+            .select()
+            .single();
+        
+        if (teamError) throw teamError;
+        
+        // Update user profile
+        const { error: profileError } = await supabase
+            .from('profiles')
+            .update({
+                team_id: newTeam.id,
+                is_team_admin: true
+            })
+            .eq('id', user.id);
+        
+        if (profileError) throw profileError;
+        
+        // Update local state
+        AppState.currentUser.team_id = newTeam.id;
+        AppState.currentUser.is_team_admin = true;
+        
+        alert(`Team "${teamName}" created successfully!\n\nTeam Code: ${teamCode}\n\nShare this code with players to invite them.`);
+        loadTeamPage();
+        
+    } catch (error) {
+        console.error('Create team error:', error);
+        alert('Failed to create team: ' + error.message);
+    }
 }
+
+
 
 function generateTeamCode() {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -1212,35 +1281,89 @@ function generateTeamCode() {
   return code;
 }
 
-function joinTeamByCode(e) {
-  e.preventDefault();
-  
-  const teamCode = document.getElementById('join-team-code').value.toUpperCase().trim();
-  const user = AppState.currentUser;
-  const result = document.getElementById('join-team-result');
-  
-  // Find team by code
-  const team = DATA.teams.find(t => t.team_code === teamCode);
-  
-  if (!team) {
-    result.innerHTML = '<p style="color: var(--color-error);">Team not found!</p>';
-    return;
-  }
-  
-  if (team.members.length >= CONFIG.team.maxMembers) {
-    result.innerHTML = '<p style="color: var(--color-error);">Team is full!</p>';
-    return;
-  }
-  
-  result.innerHTML = `
-    <div class="detail-card">
-      <h4>${team.name}</h4>
-      <p>Admin: ${team.members.find(m => m.role === 'admin').ign}</p>
-      <p>Members: ${team.members.length}/${CONFIG.team.maxMembers}</p>
-      <button class="btn btn--primary" onclick="sendJoinRequest('${team.id}')">Send Join Request</button>
-    </div>
-  `;
+async function joinTeamByCode(e) {
+    if (e) e.preventDefault(); // Handle both onclick and onsubmit calls
+    
+    // The correct ID from your HTML is 'join-team-code'
+    const codeInput = document.getElementById('join-team-code');
+    
+    if (!codeInput) {
+        console.error('Team code input not found');
+        alert('Error: Cannot find team code input field');
+        return;
+    }
+    
+    const teamCode = codeInput.value.trim().toUpperCase();
+    const user = AppState.currentUser;
+    
+    if (!teamCode) {
+        alert('Please enter a team code');
+        return;
+    }
+    
+    if (user.team_id) {
+        alert('You are already in a team! Leave your current team first.');
+        return;
+    }
+    
+    try {
+        // Find team by code
+        const { data: team, error: teamError } = await supabase
+            .from('teams')
+            .select('*')
+            .eq('team_code', teamCode)
+            .single();
+        
+        if (teamError || !team) {
+            alert('Invalid team code! Please check and try again.');
+            return;
+        }
+        
+        // Check if team is full
+        if (team.member_count >= team.max_members) {
+            alert('This team is full! Maximum members reached.');
+            return;
+        }
+        
+        // Get team admin info
+        const { data: admin, error: adminError } = await supabase
+            .from('profiles')
+            .select('ign')
+            .eq('id', team.admin_uid)
+            .single();
+        
+        if (adminError) throw adminError;
+        
+        // Send join request notification to admin
+        const { error: notifError } = await supabase
+            .from('notifications')
+            .insert({
+                user_id: team.admin_uid,
+                type: 'team_request',
+                title: 'Team Join Request',
+                message: `${user.ign} wants to join your team "${team.name}"`,
+                action_required: true,
+                action_data: {
+                    type: 'team_request',
+                    team_id: team.id,
+                    player_id: user.id,
+                    player_ign: user.ign
+                }
+            });
+        
+        if (notifError) throw notifError;
+        
+        alert(`Join request sent to team admin (${admin.ign})!\nWait for approval.`);
+        codeInput.value = '';
+        
+    } catch (error) {
+        console.error('Join team error:', error);
+        alert('Failed to join team: ' + error.message);
+    }
 }
+
+
+
 
 function sendJoinRequest(teamId) {
   const team = DATA.getTeamById(teamId);
@@ -1268,140 +1391,326 @@ function sendJoinRequest(teamId) {
   loadTeamPage();
 }
 
-function searchPlayer(e) {
-  e.preventDefault();
-  
-  const searchUid = document.getElementById('search-uid').value.trim();
-  const result = document.getElementById('search-result');
-  const user = AppState.currentUser;
-  const team = DATA.getTeamById(user.team_id);
-  
-  const player = DATA.getUserByUID(searchUid);
-  
-  if (!player) {
-    result.innerHTML = '<p style="color: var(--color-error);">Player not found!</p>';
-    return;
-  }
-  
-  if (player.uid === user.uid) {
-    result.innerHTML = '<p style="color: var(--color-error);">Cannot invite yourself!</p>';
-    return;
-  }
-  
-  if (player.team_id) {
-    result.innerHTML = '<p style="color: var(--color-error);">Player is already in a team!</p>';
-    return;
-  }
-  
-  if (team.members.length >= CONFIG.team.maxMembers) {
-    result.innerHTML = '<p style="color: var(--color-error);">Team is full!</p>';
-    return;
-  }
-  
-  result.innerHTML = `
-    <div class="detail-card">
-      <div class="member-info">
-        <div class="member-avatar">${player.avatar}</div>
-        <div class="member-details">
-          <h4>${player.ign}</h4>
-          <div class="member-uid">UID: ${player.uid}</div>
-          <div style="color: var(--color-text-secondary); font-size: 0.9rem; margin-top: 4px;">
-            ${player.total_tournaments} tournaments | ${player.win_rate}% win rate
-          </div>
-        </div>
-      </div>
-      <button class="btn btn--primary" onclick="invitePlayer('${player.uid}')">Send Invite</button>
-    </div>
-  `;
-}
-
-function invitePlayer(playerUid) {
-  const user = AppState.currentUser;
-  const team = DATA.getTeamById(user.team_id);
-  
-  // TODO: Replace with actual API call
-  // Add notification to player
-  DATA.notifications.push({
-    id: 'notif_' + Date.now(),
-    uid: playerUid,
-    type: 'team_invite',
-    title: 'Team Invitation',
-    message: `${user.ign} invited you to join ${team.name}`,
-    timestamp: new Date().toISOString(),
-    read: false,
-    action_required: true,
-    data: {
-      team_id: team.id,
-      from_uid: user.uid,
-      from_ign: user.ign
-    }
-  });
-  
-  alert('Invitation sent!');
-  document.getElementById('search-result').innerHTML = '';
-  document.getElementById('search-uid').value = '';
-}
-
-function removeMember(memberUid) {
-  const user = AppState.currentUser;
-  const team = DATA.getTeamById(user.team_id);
-  
-  if (!user.is_team_admin) {
-    alert('Only admin can remove members!');
-    return;
-  }
-  
-  if (confirm('Remove this member from the team?')) {
-    // TODO: Replace with actual API call
-    team.members = team.members.filter(m => m.uid !== memberUid);
+async function searchPlayer(e) {
+    if (e) e.preventDefault(); // Handle both onclick and onsubmit calls
     
-    // Update removed user
-    const removedUser = DATA.getUserByUID(memberUid);
-    if (removedUser) {
-      removedUser.team_id = null;
-      removedUser.is_team_admin = false;
+    // The correct ID from your HTML is 'search-uid'
+    const uidInput = document.getElementById('search-uid');
+    
+    if (!uidInput) {
+        console.error('Search UID input not found');
+        alert('Error: Cannot find search input field');
+        return;
     }
     
-    loadTeamPage();
-  }
+    const uid = uidInput.value.trim();
+    const user = AppState.currentUser;
+    
+    if (!uid) {
+        alert('Please enter a player UID');
+        return;
+    }
+    
+    if (!user.team_id || !user.is_team_admin) {
+        alert('Only team admins can search and invite players!');
+        return;
+    }
+    
+    try {
+        // Search player
+        const { data: player, error: playerError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('uid', uid)
+            .single();
+        
+        if (playerError || !player) {
+            alert('Player not found! Please check the UID.');
+            return;
+        }
+        
+        if (player.id === user.id) {
+            alert('You cannot invite yourself!');
+            return;
+        }
+        
+        if (player.team_id) {
+            alert('This player is already in a team!');
+            return;
+        }
+        
+        // Check team capacity
+        const { data: team } = await supabase
+            .from('teams')
+            .select('member_count, max_members')
+            .eq('id', user.team_id)
+            .single();
+        
+        if (team.member_count >= team.max_members) {
+            alert('Your team is full! Cannot invite more players.');
+            return;
+        }
+        
+        // Display player - the correct ID from your HTML is 'search-result'
+        const searchResults = document.getElementById('search-result');
+        if (searchResults) {
+            searchResults.innerHTML = `
+                <div class="player-search-card" style="background: var(--color-surface-light); padding: 16px; border-radius: 8px; margin-top: 16px;">
+                    <div style="display: flex; align-items: center; gap: 16px;">
+                        <div class="player-avatar" style="width: 50px; height: 50px; border-radius: 50%; background: var(--color-primary); display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 1.2rem;">
+                            ${player.avatar || player.ign.substring(0, 2).toUpperCase()}
+                        </div>
+                        <div style="flex: 1;">
+                            <h4 style="margin: 0 0 4px 0;">${player.ign}</h4>
+                            <p style="margin: 0; color: var(--color-text-secondary); font-size: 0.9rem;">UID: ${player.uid}</p>
+                            <p style="margin: 4px 0 0 0; font-size: 0.85rem;">Tournaments: ${player.total_tournaments} | Wins: ${player.wins} | Win Rate: ${player.win_rate}%</p>
+                        </div>
+                        <button class="btn btn--primary" onclick="invitePlayer('${player.id}', '${player.ign}')">
+                            Invite
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+        
+    } catch (error) {
+        console.error('Search player error:', error);
+        alert('Failed to search player: ' + error.message);
+    }
 }
 
-function leaveTeam() {
-  if (confirm('Are you sure you want to leave the team?')) {
+
+
+
+async function invitePlayer(playerId, playerIgn) {
     const user = AppState.currentUser;
-    const team = DATA.getTeamById(user.team_id);
     
-    // TODO: Replace with actual API call
-    team.members = team.members.filter(m => m.uid !== user.uid);
-    user.team_id = null;
-    user.is_team_admin = false;
-    
-    loadTeamPage();
-  }
+    try {
+        // Get team info
+        const { data: team } = await supabase
+            .from('teams')
+            .select('*')
+            .eq('id', user.team_id)
+            .single();
+        
+        // Check existing invitation
+        const { data: existingInvite } = await supabase
+            .from('team_invitations')
+            .select('id')
+            .eq('team_id', team.id)
+            .eq('invited_user_id', playerId)
+            .eq('status', 'pending')
+            .maybeSingle();
+        
+        if (existingInvite) {
+            alert('You have already sent an invitation to this player!');
+            return;
+        }
+        
+        // Create invitation
+        const { error: inviteError } = await supabase
+            .from('team_invitations')
+            .insert({
+                team_id: team.id,
+                invited_user_id: playerId,
+                invited_by_uid: user.id,
+                status: 'pending'
+            });
+        
+        if (inviteError) throw inviteError;
+        
+        // Send notification
+        const { error: notifError } = await supabase
+            .from('notifications')
+            .insert({
+                user_id: playerId,
+                type: 'team_invite',
+                title: 'Team Invitation',
+                message: `${user.ign} invited you to join team "${team.name}"`,
+                action_required: true,
+                action_data: {
+                    type: 'team_invite',
+                    team_id: team.id,
+                    team_name: team.name,
+                    team_code: team.team_code,
+                    invited_by: user.ign
+                }
+            });
+        
+        if (notifError) throw notifError;
+        
+        alert(`Invitation sent to ${playerIgn}!`);
+        
+        // Clear search results - use the correct ID from your HTML
+        const searchResult = document.getElementById('search-result');
+        const searchUid = document.getElementById('search-uid');
+        
+        if (searchResult) searchResult.innerHTML = '';
+        if (searchUid) searchUid.value = '';
+        
+    } catch (error) {
+        console.error('Invite player error:', error);
+        alert('Failed to send invitation: ' + error.message);
+    }
 }
 
-function dissolveTeam() {
-  if (confirm('Are you sure you want to dissolve the team? All members will be removed.')) {
+
+
+async function removeMember(memberUid, memberIgn) {
     const user = AppState.currentUser;
-    const team = DATA.getTeamById(user.team_id);
     
-    // TODO: Replace with actual API call
-    // Remove team from all members
-    team.members.forEach(member => {
-      const memberUser = DATA.getUserByUID(member.uid);
-      if (memberUser) {
-        memberUser.team_id = null;
-        memberUser.is_team_admin = false;
-      }
-    });
+    if (!user.is_team_admin) {
+        alert('Only team admins can remove members!');
+        return;
+    }
     
-    // Remove team
-    DATA.teams = DATA.teams.filter(t => t.id !== team.id);
+    const confirm1 = confirm(`Are you sure you want to remove ${memberIgn} from the team?`);
+    if (!confirm1) return;
     
-    alert('Team dissolved successfully!');
-    loadTeamPage();
-  }
+    try {
+        // Get member's user id
+        const { data: member } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('uid', memberUid)
+            .single();
+        
+        // Remove from team
+        const { error: removeError } = await supabase
+            .from('profiles')
+            .update({
+                team_id: null,
+                is_team_admin: false
+            })
+            .eq('id', member.id);
+        
+        if (removeError) throw removeError;
+        
+        // Send notification to removed member
+        await supabase
+            .from('notifications')
+            .insert({
+                user_id: member.id,
+                type: 'team',
+                title: 'Removed from Team',
+                message: `You have been removed from the team by ${user.ign}`,
+                action_required: false
+            });
+        
+        alert(`${memberIgn} has been removed from the team.`);
+        loadTeamPage();
+        
+    } catch (error) {
+        console.error('Remove member error:', error);
+        alert('Failed to remove member: ' + error.message);
+    }
 }
+
+
+async function leaveTeam() {
+    const user = AppState.currentUser;
+    
+    if (user.is_team_admin) {
+        alert('Team admins cannot leave! Please dissolve the team or transfer admin rights first.');
+        return;
+    }
+    
+    const confirm1 = confirm('Are you sure you want to leave the team?');
+    if (!confirm1) return;
+    
+    try {
+        // Leave team
+        const { error } = await supabase
+            .from('profiles')
+            .update({
+                team_id: null,
+                is_team_admin: false
+            })
+            .eq('id', user.id);
+        
+        if (error) throw error;
+        
+        // Update local state
+        AppState.currentUser.team_id = null;
+        AppState.currentUser.is_team_admin = false;
+        
+        alert('You have left the team.');
+        loadTeamPage();
+        
+    } catch (error) {
+        console.error('Leave team error:', error);
+        alert('Failed to leave team: ' + error.message);
+    }
+}
+
+async function dissolveTeam() {
+    const user = AppState.currentUser;
+    
+    if (!user.is_team_admin) {
+        alert('Only team admins can dissolve the team!');
+        return;
+    }
+    
+    const confirm1 = confirm('Are you sure you want to dissolve the team? This will remove all members and delete the team permanently.');
+    if (!confirm1) return;
+    
+    const confirm2 = confirm('This action cannot be undone. Are you absolutely sure?');
+    if (!confirm2) return;
+    
+    try {
+        // Get all team members
+        const { data: members } = await supabase
+            .from('profiles')
+            .select('id, ign')
+            .eq('team_id', user.team_id);
+        
+        // Remove all members from team
+        const { error: removeError } = await supabase
+            .from('profiles')
+            .update({
+                team_id: null,
+                is_team_admin: false
+            })
+            .eq('team_id', user.team_id);
+        
+        if (removeError) throw removeError;
+        
+        // Send notifications to all members
+        for (const member of members) {
+            if (member.id !== user.id) {
+                await supabase
+                    .from('notifications')
+                    .insert({
+                        user_id: member.id,
+                        type: 'team',
+                        title: 'Team Dissolved',
+                        message: `Your team has been dissolved by ${user.ign}`,
+                        action_required: false
+                    });
+            }
+        }
+        
+        // Delete team
+        const { error: deleteError } = await supabase
+            .from('teams')
+            .delete()
+            .eq('id', user.team_id);
+        
+        if (deleteError) throw deleteError;
+        
+        // Update local state
+        AppState.currentUser.team_id = null;
+        AppState.currentUser.is_team_admin = false;
+        
+        alert('Team has been dissolved.');
+        loadTeamPage();
+        
+    } catch (error) {
+        console.error('Dissolve team error:', error);
+        alert('Failed to dissolve team: ' + error.message);
+    }
+}
+
 
 // Profile Functions
 function loadProfile() {
@@ -1730,56 +2039,54 @@ function closeNotificationPanel() {
   document.getElementById('notification-panel').classList.remove('active');
 }
 
-function loadNotifications() {
-  const notifications = DATA.getUserNotifications(AppState.currentUser.uid);
-  const container = document.getElementById('notification-list');
-  
-  // Filter out expired notifications (48 hours)
-  const now = new Date();
-  const validNotifications = notifications.filter(n => {
-    const notifTime = new Date(n.timestamp);
-    const hoursDiff = (now - notifTime) / (1000 * 60 * 60);
-    return hoursDiff < CONFIG.notifications.expiryHours;
-  });
-  
-  if (validNotifications.length === 0) {
-    container.innerHTML = '<div class="empty-state"><p>No notifications</p></div>';
-    return;
-  }
-  
-  // Sort by timestamp (newest first)
-  validNotifications.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-  
-  container.innerHTML = validNotifications.map(notif => {
-    const timeAgo = getTimeAgo(new Date(notif.timestamp));
+async function loadNotifications() {
+    const user = AppState.currentUser;
+    const notifList = document.getElementById('notification-list');
     
-    return `
-      <div class="notification-item ${notif.read ? '' : 'unread'}">
-        <div class="notification-item-header">
-          <div>
-            <div class="notification-title">${notif.title}</div>
-            <div class="notification-time">${timeAgo}</div>
-          </div>
-        </div>
-        <div class="notification-message">${notif.message}</div>
-        ${notif.action_required ? `
-          <div class="notification-actions">
-            ${notif.type === 'team_invite' ? `
-              <button class="btn btn--sm btn--primary" onclick="acceptTeamInvite('${notif.id}', '${notif.data.team_id}')">Accept</button>
-              <button class="btn btn--sm btn--outline" onclick="declineTeamInvite('${notif.id}')">Decline</button>
-            ` : notif.type === 'team_request' ? `
-              <button class="btn btn--sm btn--primary" onclick="acceptTeamRequest('${notif.id}', '${notif.data.from_uid}')">Accept</button>
-              <button class="btn btn--sm btn--outline" onclick="declineTeamRequest('${notif.id}')">Decline</button>
-            ` : ''}
-          </div>
-        ` : ''}
-        ${!notif.read ? `
-          <button class="btn btn--sm btn--outline" onclick="markAsRead('${notif.id}')" style="margin-top: 8px;">Mark as Read</button>
-        ` : ''}
-      </div>
-    `;
-  }).join('');
+    try {
+        // Get notifications from database
+        const { data: notifications, error } = await supabase
+            .from('notifications')
+            .select('*')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false })
+            .limit(50);
+        
+        if (error) throw error;
+        
+        if (!notifications || notifications.length === 0) {
+            notifList.innerHTML = '<div class="empty-state">No notifications</div>';
+            return;
+        }
+        
+        notifList.innerHTML = notifications.map(notif => `
+            <div class="notification-item ${notif.read ? '' : 'unread'}">
+                <div class="notification-icon ${notif.type}"></div>
+                <div class="notification-content">
+                    <h4>${notif.title}</h4>
+                    <p>${notif.message}</p>
+                    <span class="notification-time">${formatTime(notif.timestamp)}</span>
+                </div>
+                ${notif.action_required ? `
+                    <div class="notification-actions">
+                        ${notif.action_data.type === 'team_invite' ? `
+                            <button class="btn btn--primary btn--small" onclick="acceptTeamInvite('${notif.id}', '${notif.action_data.team_id}')">Accept</button>
+                            <button class="btn btn--outline btn--small" onclick="declineTeamInvite('${notif.id}')">Decline</button>
+                        ` : notif.action_data.type === 'team_request' ? `
+                            <button class="btn btn--primary btn--small" onclick="acceptTeamRequest('${notif.id}', '${notif.action_data.player_id}', '${notif.action_data.team_id}')">Accept</button>
+                            <button class="btn btn--outline btn--small" onclick="declineTeamRequest('${notif.id}')">Decline</button>
+                        ` : ''}
+                    </div>
+                ` : ''}
+            </div>
+        `).join('');
+        
+    } catch (error) {
+        console.error('Load notifications error:', error);
+        notifList.innerHTML = '<div class="error-state">Error loading notifications</div>';
+    }
 }
+
 
 function getTimeAgo(date) {
   const now = new Date();
@@ -1801,94 +2108,188 @@ function markAsRead(notifId) {
   updateNotificationBadge();
 }
 
-function acceptTeamInvite(notifId, teamId) {
-  const user = AppState.currentUser;
-  const team = DATA.getTeamById(teamId);
-  
-  if (!team) {
-    alert('Team not found!');
-    return;
-  }
-  
-  if (user.team_id) {
-    alert('You are already in a team! Leave your current team first.');
-    return;
-  }
-  
-  if (team.members.length >= CONFIG.team.maxMembers) {
-    alert('Team is full!');
-    return;
-  }
-  
-  // TODO: Replace with actual API call
-  team.members.push({
-    uid: user.uid,
-    ign: user.ign,
-    role: 'member',
-    joined_date: new Date().toISOString().split('T')[0]
-  });
-  
-  user.team_id = team.id;
-  
-  // Remove notification
-  DATA.notifications = DATA.notifications.filter(n => n.id !== notifId);
-  
-  alert('Successfully joined team!');
-  loadNotifications();
-  updateNotificationBadge();
+async function acceptTeamInvite(notificationId, teamId) {
+    const user = AppState.currentUser;
+    
+    if (user.team_id) {
+        alert('You are already in a team! Leave your current team first.');
+        return;
+    }
+    
+    try {
+        // Get team info
+        const { data: team } = await supabase
+            .from('teams')
+            .select('*')
+            .eq('id', teamId)
+            .single();
+        
+        // Check if team is full
+        if (team.member_count >= team.max_members) {
+            alert('This team is full! Cannot join.');
+            await supabase.from('notifications').delete().eq('id', notificationId);
+            loadNotifications();
+            return;
+        }
+        
+        // Join team
+        const { error: joinError } = await supabase
+            .from('profiles')
+            .update({
+                team_id: teamId,
+                is_team_admin: false
+            })
+            .eq('id', user.id);
+        
+        if (joinError) throw joinError;
+        
+        // Update invitation status
+        await supabase
+            .from('team_invitations')
+            .update({ status: 'accepted' })
+            .eq('team_id', teamId)
+            .eq('invited_user_id', user.id);
+        
+        // Delete notification
+        await supabase.from('notifications').delete().eq('id', notificationId);
+        
+        // Notify team admin
+        await supabase
+            .from('notifications')
+            .insert({
+                user_id: team.admin_uid,
+                type: 'team',
+                title: 'Member Joined',
+                message: `${user.ign} has joined your team "${team.name}"`,
+                action_required: false
+            });
+        
+        // Update local state
+        AppState.currentUser.team_id = teamId;
+        AppState.currentUser.is_team_admin = false;
+        
+        alert(`You have joined team "${team.name}"!`);
+        loadNotifications();
+        
+    } catch (error) {
+        console.error('Accept invite error:', error);
+        alert('Failed to accept invitation: ' + error.message);
+    }
 }
 
-function declineTeamInvite(notifId) {
-  // TODO: Replace with actual API call
-  DATA.notifications = DATA.notifications.filter(n => n.id !== notifId);
-  loadNotifications();
-  updateNotificationBadge();
+
+async function declineTeamInvite(notificationId) {
+    try {
+        // Delete notification
+        const { error } = await supabase
+            .from('notifications')
+            .delete()
+            .eq('id', notificationId);
+        
+        if (error) throw error;
+        
+        alert('Invitation declined.');
+        loadNotifications();
+        
+    } catch (error) {
+        console.error('Decline invite error:', error);
+        alert('Failed to decline invitation: ' + error.message);
+    }
 }
 
-function acceptTeamRequest(notifId, playerUid) {
-  const user = AppState.currentUser;
-  const team = DATA.getTeamById(user.team_id);
-  const player = DATA.getUserByUID(playerUid);
-  
-  if (!team || !player) {
-    alert('Invalid request!');
-    return;
-  }
-  
-  if (team.members.length >= CONFIG.team.maxMembers) {
-    alert('Team is full!');
-    return;
-  }
-  
-  if (player.team_id) {
-    alert('Player is already in another team!');
-    return;
-  }
-  
-  // TODO: Replace with actual API call
-  team.members.push({
-    uid: player.uid,
-    ign: player.ign,
-    role: 'member',
-    joined_date: new Date().toISOString().split('T')[0]
-  });
-  
-  player.team_id = team.id;
-  
-  // Remove notification
-  DATA.notifications = DATA.notifications.filter(n => n.id !== notifId);
-  
-  alert('Player added to team!');
-  loadNotifications();
-  updateNotificationBadge();
+
+async function acceptTeamRequest(notificationId, playerId, teamId) {
+    const user = AppState.currentUser;
+    
+    if (!user.is_team_admin) {
+        alert('Only team admins can accept join requests!');
+        return;
+    }
+    
+    try {
+        // Get team info
+        const { data: team } = await supabase
+            .from('teams')
+            .select('*')
+            .eq('id', teamId)
+            .single();
+        
+        // Check if team is full
+        if (team.member_count >= team.max_members) {
+            alert('Your team is full! Cannot accept more members.');
+            await supabase.from('notifications').delete().eq('id', notificationId);
+            loadNotifications();
+            return;
+        }
+        
+        // Get player info
+        const { data: player } = await supabase
+            .from('profiles')
+            .select('ign, team_id')
+            .eq('id', playerId)
+            .single();
+        
+        // Check if player already in a team
+        if (player.team_id) {
+            alert('This player has already joined another team!');
+            await supabase.from('notifications').delete().eq('id', notificationId);
+            loadNotifications();
+            return;
+        }
+        
+        // Add player to team
+        const { error: addError } = await supabase
+            .from('profiles')
+            .update({
+                team_id: teamId,
+                is_team_admin: false
+            })
+            .eq('id', playerId);
+        
+        if (addError) throw addError;
+        
+        // Delete notification
+        await supabase.from('notifications').delete().eq('id', notificationId);
+        
+        // Notify player
+        await supabase
+            .from('notifications')
+            .insert({
+                user_id: playerId,
+                type: 'team',
+                title: 'Join Request Accepted',
+                message: `Your request to join team "${team.name}" has been accepted!`,
+                action_required: false
+            });
+        
+        alert(`${player.ign} has been added to your team!`);
+        loadNotifications();
+        
+    } catch (error) {
+        console.error('Accept request error:', error);
+        alert('Failed to accept request: ' + error.message);
+    }
 }
 
-function declineTeamRequest(notifId) {
-  // TODO: Replace with actual API call
-  DATA.notifications = DATA.notifications.filter(n => n.id !== notifId);
-  loadNotifications();
-  updateNotificationBadge();
+async function declineTeamRequest(notificationId) {
+    try {
+        // Delete notification
+        const { error } = await supabase
+            .from('notifications')
+            .delete()
+            .eq('id', notificationId);
+        
+        if (error) throw error;
+        
+        alert('Join request declined.');
+        loadNotifications();
+        
+    } catch (error) {
+        console.error('Decline request error:', error);
+        alert('Failed to decline request: ' + error.message);
+    }
 }
+
 
 // Utility Functions
 function toggleSidebar() {
