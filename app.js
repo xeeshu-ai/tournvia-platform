@@ -223,7 +223,37 @@ async function handleRegister(e) {
     }
     
     try {
-        // Register user with Supabase Auth
+        // Step 1: Check if UID already exists
+        const { data: existingUID, error: uidError } = await supabase
+            .from('profiles')
+            .select('uid')
+            .eq('uid', uid)
+            .maybeSingle();
+        
+        // Step 2: Check if email already exists
+        const { data: existingEmail, error: emailError } = await supabase
+            .from('profiles')
+            .select('email')
+            .eq('email', email.toLowerCase())
+            .maybeSingle();
+        
+        // Handle different scenarios
+        if (existingUID && existingEmail) {
+            alert('User already exists! Both UID and email are already registered.');
+            return;
+        }
+        
+        if (existingUID) {
+            alert('UID already exists! Please use a different Free Fire UID.');
+            return;
+        }
+        
+        if (existingEmail) {
+            alert('Email already exists! Please use a different email or login.');
+            return;
+        }
+        
+        // Step 3: Register user with Supabase Auth
         const { data, error } = await supabase.auth.signUp({
             email: email,
             password: password,
@@ -235,24 +265,40 @@ async function handleRegister(e) {
             }
         });
         
-        if (error) throw error;
-        
-        // Update profile with UID
-        if (data.user) {
-            const { error: profileError } = await supabase
-                .from('profiles')
-                .update({ uid: uid, ign: ign })
-                .eq('id', data.user.id);
-            
-            if (profileError) throw profileError;
+        if (error) {
+            // Handle Supabase auth errors
+            if (error.message.includes('already registered')) {
+                alert('Email already exists! Please login instead.');
+            } else {
+                throw error;
+            }
+            return;
         }
         
-        alert('Registration successful! You can now login.');
+        // Check if signup was successful (when email confirmation is disabled)
+        if (data.user && data.user.identities && data.user.identities.length === 0) {
+            alert('Email already exists! Please login instead.');
+            return;
+        }
+        
+        alert('Registration successful! You can now login with your email and password.');
         showLoginPage();
         
     } catch (error) {
         console.error('Registration error:', error);
-        alert('Registration failed: ' + error.message);
+        
+        // Handle unique constraint violations at database level
+        if (error.code === '23505') {
+            if (error.message.includes('uid')) {
+                alert('UID already exists! Please use a different Free Fire UID.');
+            } else if (error.message.includes('email')) {
+                alert('Email already exists! Please use a different email.');
+            } else {
+                alert('User already exists!');
+            }
+        } else {
+            alert('Registration failed: ' + error.message);
+        }
     }
 }
 
