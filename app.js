@@ -2281,36 +2281,42 @@ async function acceptTeamRequest(notificationId, playerId, teamId) {
     
     try {
         // Get team info
-        const { data: team } = await supabase
+        const { data: team, error: teamError } = await supabase
             .from('teams')
             .select('*')
             .eq('id', teamId)
             .single();
+        
+        if (teamError) throw teamError;
         
         // Check if team is full
         if (team.member_count >= team.max_members) {
             alert('Your team is full! Cannot accept more members.');
             await supabase.from('notifications').delete().eq('id', notificationId);
             loadNotifications();
+            updateNotificationBadge();
             return;
         }
         
         // Get player info
-        const { data: player } = await supabase
+        const { data: player, error: playerError } = await supabase
             .from('profiles')
             .select('ign, team_id')
             .eq('id', playerId)
             .single();
+        
+        if (playerError) throw playerError;
         
         // Check if player already in a team
         if (player.team_id) {
             alert('This player has already joined another team!');
             await supabase.from('notifications').delete().eq('id', notificationId);
             loadNotifications();
+            updateNotificationBadge();
             return;
         }
         
-        // Add player to team
+        // Add player to team - THIS IS THE CRITICAL PART
         const { error: addError } = await supabase
             .from('profiles')
             .update({
@@ -2319,7 +2325,19 @@ async function acceptTeamRequest(notificationId, playerId, teamId) {
             })
             .eq('id', playerId);
         
-        if (addError) throw addError;
+        if (addError) {
+            console.error('Error adding player to team:', addError);
+            throw addError;
+        }
+        
+        // Verify the update was successful
+        const { data: verifyPlayer } = await supabase
+            .from('profiles')
+            .select('team_id')
+            .eq('id', playerId)
+            .single();
+        
+        console.log('Player team_id after update:', verifyPlayer.team_id);
         
         // Delete notification
         await supabase.from('notifications').delete().eq('id', notificationId);
@@ -2331,13 +2349,14 @@ async function acceptTeamRequest(notificationId, playerId, teamId) {
                 user_id: playerId,
                 type: 'team',
                 title: 'Join Request Accepted',
-                message: `Your request to join team "${team.name}" has been accepted!`,
+                message: `Your request to join team "${team.name}" has been accepted! Refresh the page to see your team.`,
                 action_required: false
             });
         
         alert(`${player.ign} has been added to your team!`);
         loadNotifications();
         updateNotificationBadge();
+        loadTeamPage(); // Reload team page to show new member
         
     } catch (error) {
         console.error('Accept request error:', error);
