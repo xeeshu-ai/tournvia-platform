@@ -15,17 +15,69 @@ const AppState = {
 };
 
 // Initialize Application
-function initApp() {
-  // Check if user is logged in (using in-memory state)
-  if (AppState.isLoggedIn && AppState.currentUser) {
-    showApp();
-  } else {
-    showLoginPage();
-  }
-
-  // Set up event listeners
-  setupEventListeners();
+// Initialize Application
+async function initApp() {
+    try {
+        // Check if user has an active session
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) throw error;
+        
+        if (session && session.user) {
+            // User is logged in - get their profile
+            const { data: profile, error: profileError } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', session.user.id)
+                .single();
+            
+            if (profileError) throw profileError;
+            
+            // Set app state
+            AppState.currentUser = profile;
+            AppState.isLoggedIn = true;
+            
+            // Update last login
+            await supabase
+                .from('profiles')
+                .update({ last_login: new Date().toISOString() })
+                .eq('id', session.user.id);
+            
+            showApp();
+            loadDashboard();
+        } else {
+            // No active session - show login page
+            showLoginPage();
+        }
+        
+    } catch (error) {
+        console.error('Session check error:', error);
+        showLoginPage();
+    }
+    
+    // Set up event listeners
+    setupEventListeners();
 }
+
+
+// Listen for auth state changes
+supabase.auth.onAuthStateChange((event, session) => {
+    console.log('Auth event:', event);
+    
+    if (event === 'SIGNED_IN' && session) {
+        // User just logged in
+        AppState.isLoggedIn = true;
+    } else if (event === 'SIGNED_OUT') {
+        // User just logged out
+        AppState.currentUser = null;
+        AppState.isLoggedIn = false;
+        showLoginPage();
+    } else if (event === 'TOKEN_REFRESHED') {
+        // Token was automatically refreshed
+        console.log('Session refreshed');
+    }
+});
+
 
 // Event Listeners Setup
 function setupEventListeners() {
