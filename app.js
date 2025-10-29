@@ -133,6 +133,11 @@ function setupEventListeners() {
     });
   });
 
+// Add this line after line 140
+document.getElementById('edit-profile-btn')?.addEventListener('click', showEditProfileModal);
+
+
+
   // Wallet forms
   document.getElementById('add-money-form')?.addEventListener('submit', handleAddMoney);
   document.getElementById('withdraw-form')?.addEventListener('submit', handleWithdraw);
@@ -299,6 +304,140 @@ async function handleRegister(e) {
         } else {
             alert('Registration failed: ' + error.message);
         }
+    }
+}
+
+async function handleEditProfile(e) {
+    e.preventDefault();
+    
+    const ign = document.getElementById('edit-ign').value.trim();
+    const uid = document.getElementById('edit-uid').value.trim();
+    const avatarFile = document.getElementById('edit-avatar').files[0];
+    const user = AppState.currentUser;
+    
+    // Validation
+    if (!CONFIG.validation.uid.pattern.test(uid)) {
+        alert('Invalid UID format! Must be 9-10 digits.');
+        return;
+    }
+    
+    try {
+        let avatarUrl = user.avatar;
+        
+        // Step 1: Upload profile picture if provided
+        if (avatarFile) {
+            // Check file size (2MB max)
+            if (avatarFile.size > 2 * 1024 * 1024) {
+                alert('Image must be less than 2MB');
+                return;
+            }
+            
+            // Upload to Supabase Storage
+            const fileExt = avatarFile.name.split('.').pop();
+            const fileName = `${user.id}.${fileExt}`;
+            
+            const { error: uploadError } = await supabase.storage
+                .from('avatars')
+                .upload(fileName, avatarFile, {
+                    cacheControl: '3600',
+                    upsert: true // Overwrite if exists
+                });
+            
+            if (uploadError) throw uploadError;
+            
+            // Get public URL
+            const { data } = supabase.storage
+                .from('avatars')
+                .getPublicUrl(fileName);
+            
+            avatarUrl = data.publicUrl;
+        }
+        
+        // Step 2: Check if UID changed and if it's already taken
+        if (uid !== user.uid) {
+            const { data: existingUID } = await supabase
+                .from('profiles')
+                .select('uid')
+                .eq('uid', uid)
+                .maybeSingle();
+            
+            if (existingUID) {
+                alert('This UID is already taken by another user!');
+                return;
+            }
+        }
+        
+        // Step 3: Update profile in database
+        const { error } = await supabase
+            .from('profiles')
+            .update({
+                ign: ign,
+                uid: uid,
+                avatar: avatarUrl,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', user.id);
+        
+        if (error) throw error;
+        
+        // Step 4: Update local state
+        AppState.currentUser.ign = ign;
+        AppState.currentUser.uid = uid;
+        AppState.currentUser.avatar = avatarUrl;
+        
+        alert('Profile updated successfully!');
+        loadProfile(); // Reload profile page
+        
+    } catch (error) {
+        console.error('Profile update error:', error);
+        alert('Failed to update profile: ' + error.message);
+    }
+}
+
+async function handleDeleteAccount() {
+    // Confirmation prompts
+    const confirm1 = confirm('Are you sure you want to delete your account? This action cannot be undone.');
+    if (!confirm1) return;
+    
+    const confirm2 = confirm('All your data including tournament history, wallet balance, and team memberships will be permanently deleted. Continue?');
+    if (!confirm2) return;
+    
+    const user = AppState.currentUser;
+    
+    try {
+        // Note: Deleting from auth.users requires service_role key
+        // For now, we'll delete profile and sign out
+        // You'll need to set up a backend function for complete deletion
+        
+        // Delete profile picture from storage if exists
+        if (user.avatar && user.avatar !== 'default.jpg') {
+            const fileName = user.avatar.split('/').pop();
+            await supabase.storage
+                .from('avatars')
+                .remove([fileName]);
+        }
+        
+        // Delete profile (will cascade delete related data due to foreign keys)
+        const { error: deleteError } = await supabase
+            .from('profiles')
+            .delete()
+            .eq('id', user.id);
+        
+        if (deleteError) throw deleteError;
+        
+        // Sign out
+        await supabase.auth.signOut();
+        
+        // Clear app state
+        AppState.currentUser = null;
+        AppState.isLoggedIn = false;
+        
+        alert('Account deleted successfully. We\'re sorry to see you go!');
+        showLoginPage();
+        
+    } catch (error) {
+        console.error('Account deletion error:', error);
+        alert('Failed to delete account: ' + error.message);
     }
 }
 
@@ -1266,63 +1405,247 @@ function dissolveTeam() {
 
 // Profile Functions
 function loadProfile() {
-  const user = AppState.currentUser;
-  
-  // Profile header
-  const profileHeader = document.getElementById('profile-header');
-  profileHeader.innerHTML = `
-    <div class="profile-avatar">${user.avatar}</div>
-    <h2 class="profile-name">${user.ign}</h2>
-    <div class="profile-uid">UID: ${user.uid}</div>
-    <div style="color: var(--color-text-secondary);">Member since ${new Date(user.joined_date).toLocaleDateString()}</div>
-  `;
-  
-  // Stats cards
-  const profileStats = document.getElementById('profile-stats');
-  profileStats.innerHTML = `
-    <div class="stat-card">
-      <div class="stat-label">Total Tournaments</div>
-      <div class="stat-value">${user.total_tournaments}</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">Total Wins</div>
-      <div class="stat-value primary">${user.wins}</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">Win Rate</div>
-      <div class="stat-value">${user.win_rate}%</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">Total Earnings</div>
-      <div class="stat-value primary">${CONFIG.settings.currency}${user.total_earnings}</div>
-    </div>
-  `;
-  
-  // Tournament history table
-  const historyTable = document.getElementById('tournament-history-table');
-  const history = DATA.getUserTournamentHistory(user.uid);
-  
-  historyTable.innerHTML = `
-    <thead>
-      <tr>
-        <th>Tournament</th>
-        <th>Date</th>
-        <th>Position</th>
-        <th>Prize</th>
-      </tr>
-    </thead>
-    <tbody>
-      ${history.map(h => `
-        <tr>
-          <td>${h.tournament_name}</td>
-          <td>${new Date(h.date).toLocaleDateString()}</td>
-          <td>${h.position}/${h.participants}</td>
-          <td>${h.prize_won > 0 ? CONFIG.settings.currency + h.prize_won : '-'}</td>
-        </tr>
-      `).join('')}
-    </tbody>
-  `;
+    const user = AppState.currentUser;
+    
+    if (!user) {
+        console.error('No user data available!');
+        return;
+    }
+    
+    // Profile header
+    const profileHeader = document.getElementById('profile-header');
+    if (profileHeader) {
+        profileHeader.innerHTML = `
+            <div class="profile-avatar">${user.avatar || user.ign.substring(0, 2).toUpperCase()}</div>
+            <h2 class="profile-name">${user.ign}</h2>
+            <div class="profile-uid">UID: ${user.uid}</div>
+            <div style="color: var(--color-text-secondary)">Member since ${new Date(user.joined_date).toLocaleDateString()}</div>
+        `;
+    }
+    
+    // DON'T pre-fill edit form here - it's done in the modal function
+    // REMOVE THESE LINES:
+    // document.getElementById('edit-ign').value = user.ign;
+    // document.getElementById('edit-uid').value = user.uid;
+    
+    // Stats cards
+    const profileStats = document.getElementById('profile-stats');
+    if (profileStats) {
+        profileStats.innerHTML = `
+            <div class="stat-card">
+                <div class="stat-label">Total Tournaments</div>
+                <div class="stat-value">${user.total_tournaments || 0}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Total Wins</div>
+                <div class="stat-value primary">${user.wins || 0}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Win Rate</div>
+                <div class="stat-value">${user.win_rate || 0}%</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Total Earnings</div>
+                <div class="stat-value primary">${CONFIG.settings.currency}${user.total_earnings || 0}</div>
+            </div>
+        `;
+    }
+    
+
+
+    // Tournament history table
+    const historyTable = document.getElementById('tournament-history-table');
+    if (historyTable) {
+        historyTable.innerHTML = `
+            <thead>
+                <tr>
+                    <th>Tournament</th>
+                    <th>Date</th>
+                    <th>Position</th>
+                    <th>Prize</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td colspan="4" style="text-align: center; padding: 40px; color: var(--color-text-secondary);">
+                        No tournament history yet. Join tournaments to see your history here!
+                    </td>
+                </tr>
+            </tbody>
+        `;
+    }
 }
+
+// <-- This is the end of loadProfile function
+
+// Show Edit Profile Modal - ADD THIS OUTSIDE loadProfile
+function showEditProfileModal() {
+    const user = AppState.currentUser;
+    
+    const modalBody = document.getElementById('modal-body');
+    modalBody.innerHTML = `
+        <h2 style="margin-bottom: 24px; text-align: center;">Edit Profile</h2>
+        
+        <form id="edit-profile-form-modal" class="support-form" style="max-width: 100%; padding: 0;">
+            <div class="form-group">
+                <label for="edit-ign-modal" class="form-label">In-Game Name (IGN)</label>
+                <input type="text" id="edit-ign-modal" class="form-control" value="${user.ign}" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="edit-uid-modal" class="form-label">Free Fire UID</label>
+                <input type="text" id="edit-uid-modal" class="form-control" value="${user.uid}" required pattern="\\d{9,10}">
+            </div>
+            
+            <div class="form-group">
+                <label for="edit-avatar-modal" class="form-label">Profile Picture</label>
+                <input type="file" id="edit-avatar-modal" class="form-control" accept="image/*">
+                <p style="color: var(--color-text-secondary); font-size: 0.875rem; margin-top: 4px;">
+                    Max 2MB, JPG/PNG only
+                </p>
+            </div>
+            
+            <button type="submit" class="btn btn--primary btn--full-width" style="margin-bottom: 16px;">
+                Save Changes
+            </button>
+        </form>
+        
+        <hr style="margin: 32px 0; border: none; border-top: 1px solid var(--color-border);">
+        
+        <div style="background: rgba(255, 84, 89, 0.1); border: 1px solid rgba(255, 84, 89, 0.3); border-radius: 8px; padding: 20px;">
+            <h3 style="margin-bottom: 8px; color: #FF5459;">Danger Zone</h3>
+            <p style="color: var(--color-text-secondary); margin-bottom: 16px; font-size: 0.9rem;">
+                Once you delete your account, there is no going back. Please be certain.
+            </p>
+            <button id="delete-account-btn-modal" class="btn btn--outline" style="color: #FF5459; border-color: #FF5459; width: 100%;">
+                Delete My Account
+            </button>
+        </div>
+    `;
+    
+    // Show modal
+    document.getElementById('modal').classList.add('active');
+    
+    // Attach event listeners
+    document.getElementById('edit-profile-form-modal').addEventListener('submit', handleEditProfileModal);
+    document.getElementById('delete-account-btn-modal').addEventListener('click', handleDeleteAccountModal);
+}
+
+// Handle Edit Profile Modal Submit - ADD THIS OUTSIDE loadProfile
+async function handleEditProfileModal(e) {
+    e.preventDefault();
+    
+    const ign = document.getElementById('edit-ign-modal').value.trim();
+    const uid = document.getElementById('edit-uid-modal').value.trim();
+    const avatarFile = document.getElementById('edit-avatar-modal').files[0];
+    const user = AppState.currentUser;
+    
+    if (!CONFIG.validation.uid.pattern.test(uid)) {
+        alert('Invalid UID format! Must be 9-10 digits.');
+        return;
+    }
+    
+    try {
+        let avatarUrl = user.avatar;
+        
+        if (avatarFile) {
+            if (avatarFile.size > 2 * 1024 * 1024) {
+                alert('Image must be less than 2MB');
+                return;
+            }
+            
+            const fileExt = avatarFile.name.split('.').pop();
+            const fileName = `${user.id}.${fileExt}`;
+            
+            const { error: uploadError } = await supabase.storage
+                .from('avatars')
+                .upload(fileName, avatarFile, {
+                    cacheControl: '3600',
+                    upsert: true
+                });
+            
+            if (uploadError) throw uploadError;
+            
+            const { data } = supabase.storage
+                .from('avatars')
+                .getPublicUrl(fileName);
+            
+            avatarUrl = data.publicUrl;
+        }
+        
+        if (uid !== user.uid) {
+            const { data: existingUID } = await supabase
+                .from('profiles')
+                .select('uid')
+                .eq('uid', uid)
+                .maybeSingle();
+            
+            if (existingUID) {
+                alert('This UID is already taken!');
+                return;
+            }
+        }
+        
+        const { error } = await supabase
+            .from('profiles')
+            .update({
+                ign: ign,
+                uid: uid,
+                avatar: avatarUrl,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', user.id);
+        
+        if (error) throw error;
+        
+        AppState.currentUser.ign = ign;
+        AppState.currentUser.uid = uid;
+        AppState.currentUser.avatar = avatarUrl;
+        
+        alert('Profile updated successfully!');
+        closeModal();
+        loadProfile();
+        
+    } catch (error) {
+        console.error('Profile update error:', error);
+        alert('Failed to update profile: ' + error.message);
+    }
+}
+
+// Handle Delete Account from Modal - ADD THIS OUTSIDE loadProfile
+async function handleDeleteAccountModal() {
+    const confirm1 = confirm('Are you sure you want to delete your account? This cannot be undone.');
+    if (!confirm1) return;
+    
+    const confirm2 = confirm('All data will be permanently deleted. Continue?');
+    if (!confirm2) return;
+    
+    const user = AppState.currentUser;
+    
+    try {
+        const { error } = await supabase
+            .from('profiles')
+            .delete()
+            .eq('id', user.id);
+        
+        if (error) throw error;
+        
+        await supabase.auth.signOut();
+        
+        AppState.currentUser = null;
+        AppState.isLoggedIn = false;
+        
+        alert('Account deleted successfully.');
+        closeModal();
+        showLoginPage();
+        
+    } catch (error) {
+        console.error('Delete error:', error);
+        alert('Failed to delete account: ' + error.message);
+    }
+}
+
+
 
 // Support Functions
 function loadSupport() {
