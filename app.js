@@ -480,8 +480,9 @@ function showApp() {
   
   // Load dashboard by default
   navigateToPage('dashboard');
-  updateNotificationBadge();
+  updateNotificationBadge(); // This line calls the badge update
 }
+
 
 function navigateToPage(page) {
   AppState.currentPage = page;
@@ -2044,8 +2045,11 @@ function toggleNotificationPanel() {
   
   if (panel.classList.contains('active')) {
     loadNotifications();
+    // Update badge when panel opens
+    setTimeout(() => updateNotificationBadge(), 500);
   }
 }
+
 
 function closeNotificationPanel() {
   document.getElementById('notification-panel').classList.remove('active');
@@ -2099,6 +2103,31 @@ async function loadNotifications() {
     }
 }
 
+async function updateNotificationBadge() {
+    const user = AppState.currentUser;
+    const badge = document.getElementById('notification-badge');
+    
+    if (!user || !badge) return;
+    
+    try {
+        // Get unread notification count
+        const { data: notifications, error } = await supabase
+            .from('notifications')
+            .select('id', { count: 'exact', head: true })
+            .eq('user_id', user.id)
+            .eq('read', false);
+        
+        if (error) throw error;
+        
+        const unreadCount = notifications?.length || 0;
+        
+        badge.textContent = unreadCount;
+        badge.style.display = unreadCount > 0 ? 'block' : 'none';
+        
+    } catch (error) {
+        console.error('Update badge error:', error);
+    }
+}
 
 
 function getTimeAgo(date) {
@@ -2183,6 +2212,7 @@ async function acceptTeamInvite(notificationId, teamId) {
         
         alert(`You have joined team "${team.name}"!`);
         loadNotifications();
+        updateNotificationBadge();
         
     } catch (error) {
         console.error('Accept invite error:', error);
@@ -2203,6 +2233,7 @@ async function declineTeamInvite(notificationId) {
         
         alert('Invitation declined.');
         loadNotifications();
+        updateNotificationBadge();
         
     } catch (error) {
         console.error('Decline invite error:', error);
@@ -2296,6 +2327,7 @@ async function declineTeamRequest(notificationId) {
         
         alert('Join request declined.');
         loadNotifications();
+        updateNotificationBadge();
         
     } catch (error) {
         console.error('Decline request error:', error);
