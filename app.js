@@ -1362,6 +1362,18 @@ async function joinTeamByCode(e) {
     }
 }
 
+function formatTime(timestamp) {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const seconds = Math.floor((now - date) / 1000);
+    
+    if (seconds < 60) return 'Just now';
+    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+    if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+    if (seconds < 2592000) return `${Math.floor(seconds / 86400)}d ago`;
+    
+    return date.toLocaleDateString();
+}
 
 
 
@@ -2065,14 +2077,14 @@ async function loadNotifications() {
                 <div class="notification-content">
                     <h4>${notif.title}</h4>
                     <p>${notif.message}</p>
-                    <span class="notification-time">${formatTime(notif.timestamp)}</span>
+                    <span class="notification-time">${formatTime(notif.created_at)}</span>
                 </div>
                 ${notif.action_required ? `
                     <div class="notification-actions">
-                        ${notif.action_data.type === 'team_invite' ? `
+                        ${notif.action_data && notif.action_data.type === 'team_invite' ? `
                             <button class="btn btn--primary btn--small" onclick="acceptTeamInvite('${notif.id}', '${notif.action_data.team_id}')">Accept</button>
                             <button class="btn btn--outline btn--small" onclick="declineTeamInvite('${notif.id}')">Decline</button>
-                        ` : notif.action_data.type === 'team_request' ? `
+                        ` : notif.action_data && notif.action_data.type === 'team_request' ? `
                             <button class="btn btn--primary btn--small" onclick="acceptTeamRequest('${notif.id}', '${notif.action_data.player_id}', '${notif.action_data.team_id}')">Accept</button>
                             <button class="btn btn--outline btn--small" onclick="declineTeamRequest('${notif.id}')">Decline</button>
                         ` : ''}
@@ -2086,6 +2098,7 @@ async function loadNotifications() {
         notifList.innerHTML = '<div class="error-state">Error loading notifications</div>';
     }
 }
+
 
 
 function getTimeAgo(date) {
