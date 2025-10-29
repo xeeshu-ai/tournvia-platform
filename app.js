@@ -1065,7 +1065,6 @@ function handleWithdraw(e) {
   loadWallet();
 }
 
-// Team Functions
 async function loadTeamPage() {
     const user = AppState.currentUser;
     const teamContent = document.getElementById('team-content');
@@ -1080,9 +1079,30 @@ async function loadTeamPage() {
                 .from('teams')
                 .select('*')
                 .eq('id', user.team_id)
-                .single();
+                .maybeSingle();
             
-            if (teamError) throw teamError;
+            // Team was dissolved - clear user's team_id
+            if (!team || teamError) {
+                console.log('Team no longer exists, clearing team_id');
+                
+                // Clear team_id from user profile
+                await supabase
+                    .from('profiles')
+                    .update({
+                        team_id: null,
+                        is_team_admin: false
+                    })
+                    .eq('id', user.id);
+                
+                // Update local state
+                AppState.currentUser.team_id = null;
+                AppState.currentUser.is_team_admin = false;
+                
+                // Show no team section
+                teamContent.innerHTML = renderNoTeamSection();
+                attachTeamEventListeners();
+                return;
+            }
             
             // Get team members
             const { data: members, error: membersError } = await supabase
@@ -1110,6 +1130,7 @@ async function loadTeamPage() {
     
     attachTeamEventListeners();
 }
+
 
 
 function renderTeamSection(team, user) {
@@ -1569,7 +1590,7 @@ async function invitePlayer(playerId, playerIgn) {
 
 
 
-async function removeMember(memberUid, memberIgn) {
+async function removeMember(memberUid) {
     const user = AppState.currentUser;
     
     if (!user.is_team_admin) {
@@ -1577,16 +1598,18 @@ async function removeMember(memberUid, memberIgn) {
         return;
     }
     
-    const confirm1 = confirm(`Are you sure you want to remove ${memberIgn} from the team?`);
-    if (!confirm1) return;
-    
     try {
-        // Get member's user id
-        const { data: member } = await supabase
+        // Get member's details by UID
+        const { data: member, error: memberError } = await supabase
             .from('profiles')
-            .select('id')
+            .select('id, ign')
             .eq('uid', memberUid)
             .single();
+        
+        if (memberError) throw memberError;
+        
+        const confirm1 = confirm(`Are you sure you want to remove ${member.ign} from the team?`);
+        if (!confirm1) return;
         
         // Remove from team
         const { error: removeError } = await supabase
@@ -1610,7 +1633,7 @@ async function removeMember(memberUid, memberIgn) {
                 action_required: false
             });
         
-        alert(`${memberIgn} has been removed from the team.`);
+        alert(`${member.ign} has been removed from the team.`);
         loadTeamPage();
         
     } catch (error) {
@@ -1618,6 +1641,7 @@ async function removeMember(memberUid, memberIgn) {
         alert('Failed to remove member: ' + error.message);
     }
 }
+
 
 
 async function leaveTeam() {
@@ -2308,6 +2332,7 @@ async function acceptTeamRequest(notificationId, playerId, teamId) {
         
         alert(`${player.ign} has been added to your team!`);
         loadNotifications();
+        updateNotificationBadge();
         
     } catch (error) {
         console.error('Accept request error:', error);
