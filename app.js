@@ -2058,15 +2058,7 @@ function handleReportForm(e) {
   e.target.reset();
 }
 
-// Notification Functions
-function updateNotificationBadge() {
-  const notifications = DATA.getUserNotifications(AppState.currentUser.uid);
-  const unreadCount = notifications.filter(n => !n.read).length;
-  
-  const badge = document.getElementById('notification-badge');
-  badge.textContent = unreadCount;
-  badge.style.display = unreadCount > 0 ? 'block' : 'none';
-}
+
 
 function toggleNotificationPanel() {
   const panel = document.getElementById('notification-panel');
@@ -2134,29 +2126,40 @@ async function loadNotifications() {
 
 async function updateNotificationBadge() {
     const user = AppState.currentUser;
-    const badge = document.getElementById('notification-badge');
+    const badgeMobile = document.getElementById('notification-badge-mobile');
+    const badgeDesktop = document.getElementById('notification-badge-desktop');
     
-    if (!user || !badge) return;
+    if (!user) return;
     
     try {
         // Get unread notification count
-        const { data: notifications, error } = await supabase
+        const { count, error } = await supabase
             .from('notifications')
-            .select('id', { count: 'exact', head: true })
+            .select('*', { count: 'exact', head: true })
             .eq('user_id', user.id)
             .eq('read', false);
         
         if (error) throw error;
         
-        const unreadCount = notifications?.length || 0;
+        const unreadCount = count || 0;
         
-        badge.textContent = unreadCount;
-        badge.style.display = unreadCount > 0 ? 'block' : 'none';
+        // Update both badges (mobile + desktop)
+        if (badgeMobile) {
+            badgeMobile.textContent = unreadCount;
+            badgeMobile.style.display = unreadCount > 0 ? 'block' : 'none';
+        }
+        
+        if (badgeDesktop) {
+            badgeDesktop.textContent = unreadCount;
+            badgeDesktop.style.display = unreadCount > 0 ? 'block' : 'none';
+        }
         
     } catch (error) {
         console.error('Update badge error:', error);
     }
 }
+
+
 
 
 function getTimeAgo(date) {
