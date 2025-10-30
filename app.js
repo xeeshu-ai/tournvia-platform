@@ -2060,15 +2060,33 @@ function handleReportForm(e) {
 
 
 
-function toggleNotificationPanel() {
-  const panel = document.getElementById('notification-panel');
-  panel.classList.toggle('active');
-  
-  if (panel.classList.contains('active')) {
-    loadNotifications();
-    // Update badge when panel opens
-    setTimeout(() => updateNotificationBadge(), 500);
-  }
+async function toggleNotificationPanel() {
+    const panel = document.getElementById('notification-panel');
+    const wasActive = panel.classList.contains('active');
+    
+    panel.classList.toggle('active');
+    
+    if (!wasActive && panel.classList.contains('active')) {
+        // Panel is being opened
+        await loadNotifications();
+        
+        // Mark all notifications as read
+        const user = AppState.currentUser;
+        if (user) {
+            try {
+                await supabase
+                    .from('notifications')
+                    .update({ read: true })
+                    .eq('user_id', user.id)
+                    .eq('read', false);
+                
+                // Update badge after marking as read
+                setTimeout(() => updateNotificationBadge(), 500);
+            } catch (error) {
+                console.error('Error marking notifications as read:', error);
+            }
+        }
+    }
 }
 
 
