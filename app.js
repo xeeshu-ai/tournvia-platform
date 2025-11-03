@@ -1763,21 +1763,22 @@ function loadProfile() {
         return;
     }
     
+    // Check if avatar is valid (not 'default.jpg' or empty)
+    const hasValidAvatar = user.avatar && user.avatar !== 'default.jpg' && user.avatar !== '';
+    const avatarDisplay = hasValidAvatar ? 
+        `<img src="${user.avatar}" alt="${user.ign}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">` :
+        user.ign.substring(0, 2).toUpperCase();
+    
     // Profile header
     const profileHeader = document.getElementById('profile-header');
     if (profileHeader) {
         profileHeader.innerHTML = `
-            <div class="profile-avatar">${user.avatar || user.ign.substring(0, 2).toUpperCase()}</div>
+            <div class="profile-avatar">${avatarDisplay}</div>
             <h2 class="profile-name">${user.ign}</h2>
             <div class="profile-uid">UID: ${user.uid}</div>
             <div style="color: var(--color-text-secondary)">Member since ${new Date(user.joined_date).toLocaleDateString()}</div>
         `;
     }
-    
-    // DON'T pre-fill edit form here - it's done in the modal function
-    // REMOVE THESE LINES:
-    // document.getElementById('edit-ign').value = user.ign;
-    // document.getElementById('edit-uid').value = user.uid;
     
     // Stats cards
     const profileStats = document.getElementById('profile-stats');
@@ -1802,8 +1803,6 @@ function loadProfile() {
         `;
     }
     
-
-
     // Tournament history table
     const historyTable = document.getElementById('tournament-history-table');
     if (historyTable) {
@@ -1826,6 +1825,7 @@ function loadProfile() {
         `;
     }
 }
+
 
 // <-- This is the end of loadProfile function
 
