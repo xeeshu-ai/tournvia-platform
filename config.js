@@ -9,7 +9,7 @@ const CONFIG = {
 
   // API Configuration (for future backend integration)
   api: {
-    baseUrl: 'https://api.tournvia.com', // TODO: Replace with actual API URL
+    baseUrl: 'https://api.tournvia.com',
     endpoints: {
       // Authentication
       login: '/auth/login',
@@ -87,12 +87,101 @@ const CONFIG = {
     maxWithdraw: 50000
   },
 
-  // Tournament Settings
+  // Tournament Settings - FRONTEND FILTERS (Keep as is)
   tournament: {
     modes: ['All', 'Normal', 'Headshot'],
     gameTypes: ['All', 'Battle Royale', 'Clash Squad', 'Lone Wolf'],
     teamSizes: ['Solo', 'Duo', 'Squad'],
-    statuses: ['open', 'ongoing', 'completed', 'cancelled']
+    statuses: ['open', 'ongoing', 'completed', 'cancelled'],
+    
+    // BACKEND CONFIGURATION - Detailed team size setups
+    gameModes: {
+      battle_royale: {
+        name: 'Battle Royale',
+        description: 'Classic BR mode',
+        maps: ['Bermuda', 'Purgatory', 'Kalahari', 'Alpine'],
+        teamModes: {
+          solo: {
+            name: 'Solo',
+            teamSize: 1,
+            options: [
+              { teams: 20, players: 20, label: '20 Players' },
+              { teams: 32, players: 32, label: '32 Players' },
+              { teams: 48, players: 48, label: '48 Players' }
+            ]
+          },
+          duo: {
+            name: 'Duo',
+            teamSize: 2,
+            options: [
+              { teams: 10, players: 20, label: '10 Teams (20 Players)' },
+              { teams: 16, players: 32, label: '16 Teams (32 Players)' },
+              { teams: 24, players: 48, label: '24 Teams (48 Players)' }
+            ]
+          },
+          squad: {
+            name: 'Squad',
+            teamSize: 4,
+            options: [
+              { teams: 5, players: 20, label: '5 Teams (20 Players)' },
+              { teams: 8, players: 32, label: '8 Teams (32 Players)' },
+              { teams: 12, players: 48, label: '12 Teams (48 Players)' }
+            ]
+          }
+        }
+      },
+      clash_squad: {
+        name: 'Clash Squad',
+        description: '4v4 tactical mode',
+        teamModes: {
+          solo: {
+            name: 'Solo (1v1)',
+            teamSize: 1,
+            options: [{ teams: 2, players: 2, label: '1v1 (2 Players)' }]
+          },
+          duo: {
+            name: 'Duo (2v2)',
+            teamSize: 2,
+            options: [{ teams: 2, players: 4, label: '2v2 (4 Players)' }]
+          },
+          squad: {
+            name: 'Squad (4v4)',
+            teamSize: 4,
+            options: [{ teams: 2, players: 8, label: '4v4 (8 Players)' }]
+          },
+          '6v6': {
+            name: '6v6',
+            teamSize: 6,
+            options: [{ teams: 2, players: 12, label: '6v6 (12 Players)' }]
+          }
+        }
+      },
+      lone_wolf: {
+        name: 'Lone Wolf',
+        description: 'Solo survival mode',
+        teamModes: {
+          solo: {
+            name: 'Solo (1v1)',
+            teamSize: 1,
+            options: [{ teams: 2, players: 2, label: '1v1 (2 Players)' }]
+          },
+          duo: {
+            name: 'Duo (2v2)',
+            teamSize: 2,
+            options: [{ teams: 2, players: 4, label: '2v2 (4 Players)' }]
+          }
+        }
+      }
+    },
+    
+    status: {
+      upcoming: { label: 'Upcoming', color: '#3B82F6' },
+      registration_open: { label: 'Registration Open', color: '#10B981' },
+      registration_closed: { label: 'Registration Closed', color: '#F59E0B' },
+      ongoing: { label: 'Live', color: '#EF4444' },
+      completed: { label: 'Completed', color: '#6B7280' },
+      cancelled: { label: 'Cancelled', color: '#DC2626' }
+    }
   },
 
   // Feature Toggles
@@ -108,14 +197,13 @@ const CONFIG = {
   // Validation Rules
   validation: {
     uid: {
-        pattern: /^\d{9,10}$/,
-        message: 'UID must be 9-10 digits'
+      pattern: /^\d{9,10}$/,
+      message: 'UID must be 9-10 digits'
     },
     email: {
-        pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-        message: 'Please enter a valid email address'
+      pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+      message: 'Please enter a valid email address'
     },
-
     password: {
       minLength: 6,
       maxLength: 20
